@@ -1,5 +1,5 @@
 var endpoints = {};
-var VERSION = "0.1.4";
+var VERSION = "0.1.5";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
@@ -66,12 +66,21 @@ function findAttachmentByKey(key) {
   throw new Error("PDF attachment not found: " + key);
 }
 
-function listPDFAttachments() {
+async function listPDFAttachments() {
   var result = [];
   var libraryIDs = allLibraryIDs();
 
   for (var i = 0; i < libraryIDs.length; i++) {
-    var items = Zotero.Items.getAll(libraryIDs[i]) || [];
+    var search = new Zotero.Search();
+    search.libraryID = libraryIDs[i];
+    search.addCondition("itemType", "is", "attachment");
+
+    var itemIDs = await search.search();
+    if (!itemIDs || itemIDs.length === 0) continue;
+
+    var items = await Zotero.Items.getAsync(itemIDs);
+    if (!Array.isArray(items)) items = [items];
+
     for (var j = 0; j < items.length; j++) {
       var item = items[j];
       if (!item || !item.isPDFAttachment || !item.isPDFAttachment()) continue;
@@ -174,7 +183,7 @@ function startup() {
   });
 
   register(PREFIX + "/attachments", ["GET"], async function () {
-    return listPDFAttachments();
+    return await listPDFAttachments();
   });
 
   register(PREFIX + "/annotations", ["POST"], async function (data) {
