@@ -1,5 +1,5 @@
 var endpoints = {};
-var VERSION = "0.1.3";
+var VERSION = "0.1.4";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
@@ -64,6 +64,40 @@ function findAttachmentByKey(key) {
   }
 
   throw new Error("PDF attachment not found: " + key);
+}
+
+function listPDFAttachments() {
+  var result = [];
+  var libraryIDs = allLibraryIDs();
+
+  for (var i = 0; i < libraryIDs.length; i++) {
+    var items = Zotero.Items.getAll(libraryIDs[i]) || [];
+    for (var j = 0; j < items.length; j++) {
+      var item = items[j];
+      if (!item || !item.isPDFAttachment || !item.isPDFAttachment()) continue;
+
+      var parentTitle = "";
+      if (item.parentItemID) {
+        var parent = Zotero.Items.get(item.parentItemID);
+        if (parent) parentTitle = String(parent.getField("title") || "");
+      }
+
+      result.push({
+        key: item.key,
+        title: String(item.getField("title") || "PDF"),
+        parentTitle: parentTitle,
+        libraryID: item.libraryID,
+      });
+    }
+  }
+
+  result.sort(function (a, b) {
+    var aName = (a.parentTitle || a.title || a.key).toLowerCase();
+    var bName = (b.parentTitle || b.title || b.key).toLowerCase();
+    return aName.localeCompare(bName);
+  });
+
+  return { attachments: result };
 }
 
 function validateRects(rects) {
@@ -137,6 +171,10 @@ function uninstall() {}
 function startup() {
   register(PREFIX + "/ping", ["GET"], async function () {
     return { ok: true, version: VERSION };
+  });
+
+  register(PREFIX + "/attachments", ["GET"], async function () {
+    return listPDFAttachments();
   });
 
   register(PREFIX + "/annotations", ["POST"], async function (data) {

@@ -3,7 +3,7 @@
     "zotero-obsidian-companion@quannguyen83.local": {
       "updates": [
         {
-          "version": "0.1.3",
+          "version": "0.1.4",
           "update_link": "https://raw.githubusercontent.com/quannguyen83/zotero-obsidian-companion/main/zotero-obsidian-companion.xpi",
           "applications": {
             "zotero": {
