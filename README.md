@@ -1,85 +1,49 @@
 # Zotero Obsidian Companion
 
-Zotero-side companion plugin for receiving requests from Obsidian and creating or resolving native Zotero objects.
+Plugin phía Zotero để nhận yêu cầu từ Obsidian và tạo hoặc tìm các object native trong Zotero.
 
-## Goal
+## Mục tiêu
 
-Provide a small, explicit bridge into Zotero so an Obsidian-centric workflow can reuse Zotero's native reference and annotation capabilities without writing directly to Zotero's database.
+Plugin này đóng vai trò như một cổng giao tiếp nhỏ giữa Obsidian và Zotero.
 
-The companion should stay intentionally thin. Synchronization policy, mapping decisions, and conflict handling belong primarily to the Obsidian-side bridge.
+Logic chính vẫn nằm ở `obsidian-zotero-bridge` phía Obsidian. Companion phía Zotero chỉ nhận lệnh, gọi API của Zotero và trả kết quả.
 
-## High-level architecture
+## Kiến trúc đơn giản
 
 ```text
 Obsidian
 └─ Obsidian Zotero Bridge
-   ├─ Bridge Core
-   ├─ Mapping Registry
-   └─ Zotero Client
-            │
-            │ localhost API / IPC
-            ▼
+        │
+        │ localhost / IPC
+        ▼
 Zotero Obsidian Companion
-├─ Request Handler
-├─ Zotero API Wrapper
-├─ Annotation Operations
-├─ Note Operations
-└─ Obsidian Link Handler
-            │
-            ▼
-Zotero internal APIs
-            │
-            ├─ items / attachments
-            ├─ native annotations
-            └─ notes
+        │
+        ▼
+Zotero internal API
+        │
+        ├─ attachments
+        ├─ annotations
+        └─ notes
 ```
 
-This repository contains the **Zotero-side plugin**. The main integration and mapping logic lives in `obsidian-zotero-bridge`.
+## Plugin này làm gì?
 
-## Responsibilities
+Ở giai đoạn đầu, plugin chỉ cần làm vài việc:
 
-### Receive local requests
+- nhận request từ Obsidian
+- tìm đúng Zotero attachment
+- tạo annotation native trong Zotero
+- trả lại Zotero annotation key
+- hỗ trợ mở ngược về Obsidian
 
-Expose a local interface that the Obsidian bridge can call.
+Không cần tự làm sync engine lớn ở phía Zotero.
 
-The transport has not been finalized yet. Candidate mechanisms include localhost HTTP, WebSocket, or another local IPC mechanism appropriate for Zotero and Obsidian.
+## Ví dụ flow annotation
 
-### Resolve Zotero objects
-
-Given native Zotero identifiers, the companion should resolve objects such as:
-
-```text
-item key
-attachment key
-annotation key
-note key
-```
-
-The companion should not require the Obsidian bridge to understand Zotero's internal database schema.
-
-### Create native annotations
-
-The initial core operation is to accept normalized annotation data from Obsidian and create a native Zotero annotation associated with the correct PDF attachment.
-
-Expected input includes at least:
-
-```text
-attachment key
-page / page index
-selected text
-annotation geometry
-color
-comment
-Obsidian-side annotation reference
-```
-
-The companion then returns the Zotero annotation key and enough information for the bridge to construct or store the corresponding deep link.
-
-Example conceptual request:
+Obsidian gửi dữ liệu kiểu:
 
 ```json
 {
-  "action": "create_annotation",
   "attachmentKey": "ABCD1234",
   "pageIndex": 6,
   "text": "Visual tracking degrades under rapid motion...",
@@ -90,7 +54,7 @@ Example conceptual request:
 }
 ```
 
-Conceptual response:
+Companion tạo annotation trong Zotero rồi trả lại:
 
 ```json
 {
@@ -98,13 +62,19 @@ Conceptual response:
 }
 ```
 
-## Bidirectional navigation
+Bridge phía Obsidian sẽ lưu mapping:
 
-The integration should support navigation in both directions.
+```text
+obs-ann-42 ↔ XYZ98765
+```
+
+## Mở hai chiều
 
 ### Obsidian → Zotero
 
-The Obsidian bridge can open a native Zotero annotation using a deep link of the form:
+Từ Obsidian có thể mở đúng annotation trong Zotero bằng deep link.
+
+Ví dụ:
 
 ```text
 zotero://open-pdf/library/items/<ATTACHMENT_KEY>?page=<PAGE>&annotation=<ANNOTATION_KEY>
@@ -112,78 +82,77 @@ zotero://open-pdf/library/items/<ATTACHMENT_KEY>?page=<PAGE>&annotation=<ANNOTAT
 
 ### Zotero → Obsidian
 
-The companion should retain or resolve an Obsidian counterpart reference so Zotero can provide an `Open in Obsidian` action for a mapped annotation or note.
-
-The exact storage mechanism for that reference is still to be designed.
-
-## Identity model
-
-Obsidian and Zotero keep their own native IDs. The companion does not impose a shared global identifier.
-
-Mappings are maintained by the Obsidian bridge:
+Companion sẽ hỗ trợ một action kiểu:
 
 ```text
-Obsidian PDF            ↔ Zotero attachment
-Obsidian annotation     ↔ Zotero annotation
-Obsidian note           ↔ Zotero note
+Open in Obsidian
 ```
 
-The companion only needs enough counterpart information to support requests and reverse navigation.
+để quay lại đúng annotation hoặc note tương ứng phía Obsidian.
 
-## Notes
+## ID và mapping
 
-Note support is planned, but annotation creation is the first priority.
+Hai app giữ ID riêng.
 
-The intended relationship is:
+Ví dụ:
 
 ```text
-Obsidian note ID ↔ Zotero note key
+Obsidian annotation ID ↔ Zotero annotation key
+Obsidian note ID       ↔ Zotero note key
 ```
 
-Each side keeps a unique native note. Later synchronization can update content while preserving the one-to-one mapping.
+Mapping chính được quản lý ở phía Obsidian Bridge.
 
-## MVP
+Companion chỉ cần nhận đủ thông tin để xử lý request và hỗ trợ mở ngược về Obsidian.
 
-The first milestone should provide only the minimum Zotero-side capabilities required to prove the architecture:
+## Note
 
-1. Load as a Zotero plugin.
-2. Accept a local request from the Obsidian bridge.
-3. Resolve a PDF attachment by Zotero attachment key.
-4. Create a native Zotero highlight annotation.
-5. Return the created annotation key.
-6. Allow the resulting annotation to be opened normally in Zotero.
-7. Provide a path toward `Open in Obsidian` for the mapped object.
+Note sẽ làm sau annotation.
 
-## Later capabilities
+Mục tiêu sau này:
 
-After the basic annotation round trip works, the companion may add:
+```text
+Obsidian note ↔ Zotero note
+```
+
+Hai bên vẫn giữ note riêng nhưng có mapping duy nhất và có thể mở qua lại.
+
+## MVP đầu tiên
+
+1. Plugin load được trong Zotero.
+2. Nhận request local từ Obsidian.
+3. Tìm attachment theo Zotero attachment key.
+4. Tạo native highlight annotation.
+5. Trả annotation key về Obsidian.
+6. Annotation mở bình thường trong Zotero.
+7. Có nền để thêm `Open in Obsidian`.
+
+## Làm sau
+
+Sau khi annotation flow cơ bản chạy ổn mới thêm:
 
 ```text
 get annotation
 update annotation
 delete annotation
 note read/create/update
-Zotero-side change events
-reverse synchronization support
+change events
+sync hai chiều
 ```
 
-These should remain API operations; synchronization policy belongs to the bridge core.
+## Nguyên tắc
 
-## Design principles
+- plugin phía Zotero càng nhỏ càng tốt
+- dùng API của Zotero, không ghi trực tiếp vào `zotero.sqlite`
+- giữ annotation native của Zotero
+- để Bridge phía Obsidian quản lý mapping và sync logic
 
-- Keep the Zotero plugin thin.
-- Use Zotero's APIs instead of directly modifying `zotero.sqlite`.
-- Preserve native Zotero annotation behavior.
-- Keep IDs native to each application.
-- Make every cross-application relationship explicitly mappable.
-- Do not duplicate PDF rendering, citation management, or synchronization logic unnecessarily.
+## Repo phía Obsidian
 
-## Bridge repository
-
-The Obsidian-side integration, mapping registry, and sync coordinator live in:
+Phần logic chính nằm ở:
 
 `obsidian-zotero-bridge`
 
-## Status
+## Trạng thái
 
-Architecture and API research phase. The initial implementation will focus on native highlight creation from Obsidian requests.
+Đang ở giai đoạn thiết kế và nghiên cứu API tạo annotation native trong Zotero.
