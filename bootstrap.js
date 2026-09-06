@@ -1,5 +1,5 @@
 var endpoints = {};
-var VERSION = "0.1.5";
+var VERSION = "0.1.6";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
@@ -109,6 +109,35 @@ async function listPDFAttachments() {
   return { attachments: result };
 }
 
+async function getAttachmentFileInfo(data) {
+  var attachment = findAttachmentByKey(data.attachmentKey);
+  var path = "";
+
+  if (attachment.getFilePathAsync) {
+    path = await attachment.getFilePathAsync();
+  } else if (attachment.getFilePath) {
+    path = attachment.getFilePath();
+  }
+
+  if (!path) {
+    throw new Error("PDF attachment file is not available locally: " + attachment.key);
+  }
+
+  var parentTitle = "";
+  if (attachment.parentItemID) {
+    var parent = Zotero.Items.get(attachment.parentItemID);
+    if (parent) parentTitle = String(parent.getField("title") || "");
+  }
+
+  return {
+    attachmentKey: attachment.key,
+    path: String(path),
+    title: String(attachment.getField("title") || "PDF"),
+    parentTitle: parentTitle,
+    libraryID: attachment.libraryID,
+  };
+}
+
 function validateRects(rects) {
   if (!Array.isArray(rects) || rects.length === 0) {
     throw new Error("rects must contain at least one rectangle");
@@ -184,6 +213,10 @@ function startup() {
 
   register(PREFIX + "/attachments", ["GET"], async function () {
     return await listPDFAttachments();
+  });
+
+  register(PREFIX + "/attachment-file", ["POST"], async function (data) {
+    return await getAttachmentFileInfo(data);
   });
 
   register(PREFIX + "/annotations", ["POST"], async function (data) {

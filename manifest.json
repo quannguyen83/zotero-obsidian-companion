@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero Obsidian Companion",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Local bridge used by the Obsidian Zotero Bridge plugin.",
   "applications": {
     "zotero": {
