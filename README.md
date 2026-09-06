@@ -8,22 +8,53 @@ Plugin này đóng vai trò như một cổng giao tiếp nhỏ giữa Obsidian 
 
 Logic chính vẫn nằm ở `obsidian-zotero-bridge` phía Obsidian. Companion phía Zotero chỉ nhận lệnh, gọi API của Zotero và trả kết quả.
 
-## Kiến trúc đơn giản
+## Component graph
 
-```text
-Obsidian
-└─ Obsidian Zotero Bridge
-        │
-        │ localhost / IPC
-        ▼
-Zotero Obsidian Companion
-        │
-        ▼
-Zotero internal API
-        │
-        ├─ attachments
-        ├─ annotations
-        └─ notes
+```mermaid
+flowchart LR
+    BRIDGE["obsidian-zotero-bridge"]
+
+    subgraph Zotero["Zotero"]
+        subgraph COMP["zotero-obsidian-companion"]
+            API["Local API"]
+            ROUTER["Request Router"]
+            ATTACH["Attachment Service"]
+            ANN["Annotation Service"]
+            NOTE["Note Service"]
+            LINK["Obsidian Link Service"]
+            MAP["Zotero Object Mapper"]
+            WRAP["Zotero API Wrapper"]
+        end
+
+        ITEM["Zotero Items"]
+        PDF["PDF Attachments"]
+        ANNO["Native Annotations"]
+        ZNOTE["Zotero Notes"]
+        READER["Zotero Reader"]
+    end
+
+    BRIDGE <-->|"localhost"| API
+
+    API --> ROUTER
+
+    ROUTER --> ATTACH
+    ROUTER --> ANN
+    ROUTER --> NOTE
+    ROUTER --> LINK
+
+    ATTACH --> MAP
+    ANN --> MAP
+    NOTE --> MAP
+
+    MAP --> WRAP
+
+    WRAP --> ITEM
+    WRAP --> PDF
+    WRAP --> ANNO
+    WRAP --> ZNOTE
+
+    ANNO --> READER
+    PDF --> READER
 ```
 
 ## Plugin này làm gì?
@@ -38,7 +69,59 @@ Zotero internal API
 
 Không cần tự làm sync engine lớn ở phía Zotero.
 
+## Các phần chính
+
+### Local API
+
+Nhận request từ `obsidian-zotero-bridge` qua kết nối local.
+
+### Request Router
+
+Xác định request đang muốn làm gì, ví dụ tìm attachment, tạo annotation, xử lý note hoặc mở lại Obsidian.
+
+### Attachment Service
+
+Tìm đúng PDF attachment trong Zotero từ attachment key hoặc thông tin được gửi sang.
+
+### Annotation Service
+
+Tạo và sau này có thể cập nhật hoặc xóa annotation native trong Zotero.
+
+### Note Service
+
+Phần dành cho note. Chưa phải ưu tiên ở MVP đầu tiên.
+
+### Obsidian Link Service
+
+Hỗ trợ action kiểu `Open in Obsidian` để quay lại object tương ứng phía Obsidian.
+
+### Zotero Object Mapper
+
+Chuyển dữ liệu từ Bridge sang dạng object mà Zotero hiểu được.
+
+### Zotero API Wrapper
+
+Là lớp trực tiếp làm việc với API nội bộ của Zotero. Các service phía trên không cần chạm trực tiếp vào database.
+
 ## Ví dụ flow annotation
+
+```text
+Obsidian Bridge
+    ↓
+Local API
+    ↓
+Request Router
+    ↓
+Annotation Service
+    ↓
+Zotero Object Mapper
+    ↓
+Zotero API Wrapper
+    ↓
+Native Zotero Annotation
+    ↓
+Zotero Reader
+```
 
 Obsidian gửi dữ liệu kiểu:
 
