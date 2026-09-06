@@ -1,0 +1,42 @@
+name: Build Zotero companion XPI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - zotero-obsidian-companion.xpi
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package XPI
+        run: |
+          rm -f zotero-obsidian-companion.xpi
+          zip -j zotero-obsidian-companion.xpi manifest.json bootstrap.js
+
+      - name: Verify XPI contents
+        run: unzip -l zotero-obsidian-companion.xpi
+
+      - name: Commit built XPI
+        run: |
+          if git diff --quiet -- zotero-obsidian-companion.xpi && git ls-files --error-unmatch zotero-obsidian-companion.xpi >/dev/null 2>&1; then
+            echo "zotero-obsidian-companion.xpi is already up to date"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zotero-obsidian-companion.xpi
+          git commit -m "build: update Zotero companion XPI [skip ci]"
+          git push
