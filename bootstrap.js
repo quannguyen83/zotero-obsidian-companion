@@ -1,9 +1,22 @@
 var endpoints = {};
-var VERSION = "0.1.2";
+var VERSION = "0.1.3";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
   Zotero.debug("[zotero-obsidian-companion] " + message);
+}
+
+function normalizeData(data) {
+  if (!data) return {};
+  if (typeof data === "object") return data;
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch (error) {
+      return {};
+    }
+  }
+  return {};
 }
 
 function register(path, methods, handler) {
@@ -11,15 +24,15 @@ function register(path, methods, handler) {
   endpoints[path].prototype = {
     supportedMethods: methods,
     supportedDataTypes: ["application/json"],
-    init: async function (req) {
+    init: async function (data, sendResponseCallback) {
       try {
-        var output = await handler((req && req.data) || {}, req || {});
-        return [200, "application/json", JSON.stringify(output)];
+        var output = await handler(normalizeData(data));
+        sendResponseCallback(200, "application/json", JSON.stringify(output));
       } catch (error) {
         log("error on " + path + ": " + (error && error.stack ? error.stack : error));
-        return [500, "application/json", JSON.stringify({
+        sendResponseCallback(500, "application/json", JSON.stringify({
           error: String((error && error.message) || error),
-        })];
+        }));
       }
     },
   };
