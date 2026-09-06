@@ -1,5 +1,5 @@
 var endpoints = {};
-var VERSION = "0.1.0";
+var VERSION = "0.1.1";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
