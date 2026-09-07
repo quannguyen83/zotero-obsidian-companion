@@ -1,5 +1,5 @@
 var endpoints = {};
-var VERSION = "0.1.6";
+var VERSION = "0.1.7";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
@@ -203,6 +203,74 @@ async function createHighlight(data) {
   };
 }
 
+function finiteRects(rects) {
+  if (!Array.isArray(rects) || rects.length === 0) return false;
+  for (var i = 0; i < rects.length; i++) {
+    var rect = rects[i];
+    if (!Array.isArray(rect) || rect.length !== 4) return false;
+    for (var j = 0; j < rect.length; j++) {
+      if (typeof rect[j] !== "number" || !Number.isFinite(rect[j])) return false;
+    }
+  }
+  return true;
+}
+
+async function annotationToJSON(annotation) {
+  if (Zotero.Annotations && Zotero.Annotations.toJSON) {
+    return await Zotero.Annotations.toJSON(annotation);
+  }
+  if (annotation && annotation.toJSON) return annotation.toJSON();
+  return {};
+}
+
+async function listAttachmentAnnotations(data) {
+  var attachment = findAttachmentByKey(data.attachmentKey);
+  var source = attachment.getAnnotations ? attachment.getAnnotations() : [];
+  var result = [];
+
+  for (var i = 0; i < source.length; i++) {
+    var annotation = source[i];
+    if (!annotation) continue;
+
+    var json = await annotationToJSON(annotation);
+    var type = String(json.type || json.annotationType || annotation.annotationType || "");
+    if (type !== "highlight") continue;
+
+    var position = json.position || json.annotationPosition || annotation.annotationPosition;
+    if (typeof position === "string") {
+      try {
+        position = JSON.parse(position);
+      } catch (error) {
+        continue;
+      }
+    }
+
+    var pageIndex = Number(position && position.pageIndex);
+    var rects = position && position.rects;
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || !finiteRects(rects)) continue;
+
+    var key = String(json.key || annotation.key || "");
+    if (!key) continue;
+
+    result.push({
+      annotationKey: key,
+      attachmentKey: attachment.key,
+      pageIndex: pageIndex,
+      rects: rects,
+      text: String(json.text || json.annotationText || annotation.annotationText || ""),
+      comment: String(json.comment || json.annotationComment || annotation.annotationComment || ""),
+      color: String(json.color || json.annotationColor || annotation.annotationColor || Zotero.Annotations.DEFAULT_COLOR),
+      pageLabel: String(json.pageLabel || json.annotationPageLabel || annotation.annotationPageLabel || (pageIndex + 1)),
+    });
+  }
+
+  log("listed " + result.length + " highlight annotations for attachment " + attachment.key);
+  return {
+    attachmentKey: attachment.key,
+    annotations: result,
+  };
+}
+
 function install() {}
 function uninstall() {}
 
@@ -221,6 +289,10 @@ function startup() {
 
   register(PREFIX + "/annotations", ["POST"], async function (data) {
     return createHighlight(data);
+  });
+
+  register(PREFIX + "/attachment-annotations", ["POST"], async function (data) {
+    return await listAttachmentAnnotations(data);
   });
 
   log("local endpoints registered");
