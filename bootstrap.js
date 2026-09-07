@@ -1,5 +1,5 @@
 var endpoints = {};
-var VERSION = "0.1.7";
+var VERSION = "0.1.8";
 var PREFIX = "/obsidian-bridge";
 
 function log(message) {
@@ -271,6 +271,32 @@ async function listAttachmentAnnotations(data) {
   };
 }
 
+async function deleteAnnotation(data) {
+  var attachment = findAttachmentByKey(data.attachmentKey);
+  var annotationKey = String(data.annotationKey || "");
+  if (!annotationKey) throw new Error("annotationKey is required");
+
+  var source = attachment.getAnnotations ? attachment.getAnnotations() : [];
+  var annotation = null;
+  for (var i = 0; i < source.length; i++) {
+    if (source[i] && String(source[i].key || "") === annotationKey) {
+      annotation = source[i];
+      break;
+    }
+  }
+
+  if (!annotation) {
+    return { deleted: false, annotationKey: annotationKey, attachmentKey: attachment.key };
+  }
+
+  if (annotation.eraseTx) await annotation.eraseTx();
+  else if (annotation.erase) await annotation.erase();
+  else throw new Error("annotation cannot be deleted with this Zotero version");
+
+  log("deleted annotation " + annotationKey + " for attachment " + attachment.key);
+  return { deleted: true, annotationKey: annotationKey, attachmentKey: attachment.key };
+}
+
 function install() {}
 function uninstall() {}
 
@@ -293,6 +319,10 @@ function startup() {
 
   register(PREFIX + "/attachment-annotations", ["POST"], async function (data) {
     return await listAttachmentAnnotations(data);
+  });
+
+  register(PREFIX + "/delete-annotation", ["POST"], async function (data) {
+    return await deleteAnnotation(data);
   });
 
   log("local endpoints registered");
